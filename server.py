@@ -8,16 +8,10 @@ cd to the `examples/snippets/clients` directory and run:
 import json
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-import urllib.request
-import urllib.error
-import urllib.parse
 from mcp.server.fastmcp import FastMCP
-
 import utils
 
-
-
-mcp = FastMCP("Movilidad Con Prompts")
+mcp = FastMCP("Movilidad Con Prompts", dependencies=["requests"])
 
 @mcp.tool()
 def consultar_omnibus_cercanos(direccion: str, tiempo: Optional[str] = None, radio: float = 300) -> Any:
@@ -43,7 +37,6 @@ def consultar_omnibus_cercanos(direccion: str, tiempo: Optional[str] = None, rad
         horarios = utils.get_next_buses_at_stop(parada['busstopId'], utils.get_codigo_dia(tiempo), tiempo.strftime("%H:%M"))
 
         resultados.append({
-            'parada': parada['busstopId'],
             'calle': parada['street1'],
             'esquina': parada['street2'],
             'horarios': horarios
