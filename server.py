@@ -102,21 +102,24 @@ def consultar_rutas_omnibus(direccionOrigen: str, direccionDestino: str) -> Any:
     return utils.parse_tramos_ordenados(response.json())
 
 @mcp.tool()
-def consultar_eta_tiempo_real(parada_id: int = None, lineas: list = None) -> Any:
+def consultar_eta_tiempo_real(parada_id: int, lineas: list = None) -> Any:
     """
     Consulta los ETAs (tiempo estimado de llegada) en tiempo real de las líneas de ómnibus.
     Puede consultar por dirección (busca paradas cercanas) o por ID de parada específica.
     Utilizar en los casos donde el usuario quiere saber cuando pasa el proximo omnibus por una parada. 
     Por ejemplo: "Cuando pasa el omnibus 181 por la parada de Bulevar Espana esquina Obligado?"
+
     
     Args:
-        parada_id: ID específico de la parada a consultar).
+        parada_id: ID específico de la parada a consultar. Este parametro puede ser obtenido utilizando la herramienta consultar_horarios_programados_omnibus.
         lineas: Lista de líneas específicas a consultar (ej: ["181", "407"]). Si no se especifica, consulta todas las líneas disponibles.
     
     Returns:
         Información de ETAs en tiempo real con líneas, destinos y tiempos de llegada.
     """
     resultados = []
+    if lineas is None:
+        lineas = []
     
     etas = utils.get_eta_lineas(parada_id, lineas)
     if etas:
