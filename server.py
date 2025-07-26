@@ -6,18 +6,21 @@ cd to the `examples/snippets/clients` directory and run:
 """
 
 import json
+from datetime import datetime
+from typing import List, Dict, Any, Optional
 import urllib.request
 import urllib.error
 import urllib.parse
-from datetime import datetime
-from typing import List, Dict, Any, Optional
-
 from mcp.server.fastmcp import FastMCP
+
+import utils
+
+
 
 mcp = FastMCP("Movilidad Con Prompts")
 
 
-@mcp.tool()
+# @mcp.tool()
 def consultar_horarios_omnibus(codigo_parada: int, fecha: str, hora: str) -> List[Dict[str, Any]]:
     """
     Consulta los horarios de pasada de ómnibus en Montevideo.
@@ -80,84 +83,29 @@ def consultar_horarios_omnibus(codigo_parada: int, fecha: str, hora: str) -> Lis
     except Exception as e:
         raise ValueError(f"Error inesperado: {str(e)}")
 
-
 @mcp.tool()
-def geocodificar_direccion(direccion: str, departamento: str = "Montevideo", localidad: str = "Montevideo") -> Dict[str, Any]:
+def consultar_omnibus_cercanos(direccion: str, tiempo = datetime.now(), radio: float = 300) -> Any:
     """
-    Geocodifica una dirección en Uruguay y devuelve coordenadas e información de la calle.
-    
+    Consulta los proximos omnibus cercanos a una direccion.
     Args:
-        direccion: Dirección a geocodificar (ej: "18 de Julio 1234", "Pocitos 850 esquina Buxareo")
-        departamento: Departamento donde buscar (por defecto "Montevideo")
-        localidad: Localidad donde buscar (por defecto "Montevideo")
-    
+        direccion: La direccion a consultar en lenguaje natural.
+        radio: El radio en metros para buscar omnibus cercanos. Por defecto 300 metros.
     Returns:
-        Diccionario con información de la dirección encontrada incluyendo coordenadas, ID de calle, etc.
+        Los omnibus que estan cercanos a pasar por las paradas cercanas a la direccion.
     """
-    if not direccion.strip():
-        raise ValueError("La dirección no puede estar vacía")
     
-    url_base = 'https://direcciones.ide.uy/api/v0/geocode/BusquedaDireccion'
-    
-    params = {
-        'calle': direccion.strip(),
-        'departamento': departamento,
-        'localidad': localidad
-    }
-    
-    url_params = urllib.parse.urlencode(params)
-    url = f"{url_base}?{url_params}"
-    
-    try:
-        with urllib.request.urlopen(url) as response:
-            web_pg = response.read()
-            data = json.loads(web_pg.decode('utf-8'))
-        
-        if not data:
-            raise ValueError("No se encontraron resultados para la dirección especificada")
-        
-        resultado = data[0] if isinstance(data, list) else data
-        
-        
-        direccion_info = resultado.get('direccion', {})
-        calle_info = direccion_info.get('calle', {})
-        numero_info = direccion_info.get('numero', {})
-        depto_info = direccion_info.get('departamento', {})
-        localidad_info = direccion_info.get('localidad', {})
-        
-        calle_nombre = calle_info.get('nombre_normalizado', 'N/A')
-        numero_puerta = numero_info.get('nro_puerta', '')
-        direccion_completa = f"{calle_nombre} {numero_puerta}" if numero_puerta else calle_nombre
-        
-        geocoding_result = {
-            'direccion_encontrada': direccion_completa,
-            'coordenadas': {
-                'latitud': resultado.get('puntoY', None),
-                'longitud': resultado.get('puntoX', None)
-            },
-            'codigo_calle': calle_info.get('idCalle', None),
-            'numero_puerta': numero_puerta,
-            'departamento': depto_info.get('nombre_normalizado', departamento),
-            'localidad': localidad_info.get('nombre_normalizado', localidad),
-            'codigo_postal': resultado.get('codigoPostal', None),
-            'estado_geocodificacion': resultado.get('error', ''),
-            'precision': 'exacta' if not resultado.get('error') else 'aproximada'
-        }
-        
-        if geocoding_result['coordenadas']['latitud'] is None or geocoding_result['coordenadas']['longitud'] is None:
-            raise ValueError("No se pudieron obtener coordenadas válidas para la dirección")
-        
-        return geocoding_result
-        
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            raise ValueError("Dirección no encontrada en la base de datos")
-        else:
-            raise ValueError(f"Error HTTP {e.code}: {e.reason}")
-    except urllib.error.URLError as e:
-        raise ValueError(f"Error de conexión a la API de direcciones: {e.reason}")
-    except json.JSONDecodeError:
-        raise ValueError("Error al decodificar la respuesta de la API")
-    except Exception as e:
-        raise ValueError(f"Error inesperado: {str(e)}")
+    coordenadas_direccion = utils.geocodificar_direccion(direccion)
+    paradas_cercanas = utils.get_stops_within_radius(coordenadas_direccion['latitud'], coordenadas_direccion['longitud'], radio)
 
+    resultados = []
+    for parada in paradas_cercanas:
+        horarios = utils.get_next_buses_at_stop(parada['busstopId'], utils.get_codigo_dia(tiempo.strftime("%Y-%m-%d")), tiempo.strftime("%H:%M"))
+
+        resultados.append({
+            'parada': parada['busstopId'],
+            'calle': parada['street1'],
+            'esquina': parada['street2'],
+            'horarios': horarios
+        })
+
+    return resultados
