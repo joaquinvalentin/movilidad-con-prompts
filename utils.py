@@ -53,20 +53,16 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
     Returns:
         Distance in meters
     """
-    # Radio de la Tierra en metros
     R = 6371000  
     
-    # Convertir grados a radianes
     lat1_rad = math.radians(lat1)
     lon1_rad = math.radians(lon1)
     lat2_rad = math.radians(lat2)
     lon2_rad = math.radians(lon2)
     
-    # Diferencias
     dlat = lat2_rad - lat1_rad
     dlon = lon2_rad - lon1_rad
     
-    # Fórmula de Haversine
     a = math.sin(dlat/2)**2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon/2)**2
     c = 2 * math.asin(math.sqrt(a))
     
@@ -87,20 +83,16 @@ def get_stops_within_radius(latitude: float, longitude: float, max_distance: flo
         list: List of dictionaries containing busstopId and distance for stops within radius,
               sorted by distance (closest first)
     """
-    # Read the bus stops data
     paradas = read_paradas_json(filepath)
     
     stops_within_radius = []
     
     for parada in paradas:
-        # Extract coordinates from the location
         stop_longitude = parada['location']['coordinates'][0]
         stop_latitude = parada['location']['coordinates'][1]
         
-        # Calculate Haversine distance in meters
         distance = haversine_distance(latitude, longitude, stop_latitude, stop_longitude)
         
-        # Add to results if within radius
         if distance <= max_distance:
             stops_within_radius.append({
                 'busstopId': parada['busstopId'],
@@ -110,7 +102,6 @@ def get_stops_within_radius(latitude: float, longitude: float, max_distance: flo
                 'coordinates': [stop_latitude, stop_longitude]
             })
     
-    # Sort by distance (closest first)
     stops_within_radius.sort(key=lambda x: x['distance'])
     
     return stops_within_radius
@@ -229,13 +220,11 @@ def get_next_buses_at_stop(stop_id: str, day: str, time: str):
 
     return results
 
-def get_codigo_dia(fecha: str):
+def get_codigo_dia(fecha: datetime):
     """
     Devuelve el código del día de la semana para la fecha y hora proporcionadas.
     """
-    fecha_obj = datetime.strptime(fecha, "%Y-%m-%d")
-    
-    dia_semana = fecha_obj.weekday()
+    dia_semana = fecha.weekday()
     if dia_semana == 5:
         tipo_dia = "SABADO"
     elif dia_semana == 6:
