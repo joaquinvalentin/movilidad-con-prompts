@@ -21,8 +21,7 @@ def get_closest_stop_id(latitude: float, longitude: float) -> int:
     Returns:
         int: The busstopId of the closest stop
     """
-    # Get all stops within a very large radius and return the closest one
-    stops = get_stops_within_radius(latitude, longitude, float('inf'))
+    stops = get_stops_within_radius(latitude, longitude, 5000)
     
     if stops:
         return stops[0]['busstopId']
@@ -69,9 +68,7 @@ def get_stops_within_radius(latitude: float, longitude: float, max_distance: flo
     Returns:
         list: List of dictionaries containing busstopId and distance for stops within radius,
               sorted by distance (closest first)
-    """
-    # Read the bus stops data
-    
+    """    
     stops_within_radius = []
     
     for parada in PARADAS:
@@ -121,7 +118,7 @@ def geocodificar_direccion(direccion: str, departamento: str = "Montevideo", loc
     url = f"{url_base}?{url_params}"
     
     try:
-        with urllib.request.urlopen(url) as response:
+        with urllib.request.urlopen(url) as response: #TODO: cambiar a requests
             web_pg = response.read()
             data = json.loads(web_pg.decode('utf-8'))
         
@@ -178,6 +175,7 @@ def get_next_buses_at_stop(stop_id: str, day: str, time: str):
     """
     Devuelve los próximos ómnibus de una parada con solo los campos clave:
     hora, time, destino, linea, minutos y real.
+    Máximo 3 entradas por línea.
     """
     url = f"https://api.montevideo.gub.uy/transporteRest/siguientesParada/{stop_id}/{day}/{time}"
 
@@ -195,17 +193,25 @@ def get_next_buses_at_stop(stop_id: str, day: str, time: str):
     response.raise_for_status()
     data = response.json()
 
-
     results = []
+    lineas_count = {}
+    
     for item in data:
-        results.append({
-            'hora': item.get('hora'),
-            'time': item.get('time'),
-            'destino': item.get('destino'),
-            'linea': item.get('linea'),
-            'minutos': item.get('minutos'),
-            'real': item.get('real')
-        })
+        linea = item.get('linea')
+        
+        if linea not in lineas_count:
+            lineas_count[linea] = 0
+        
+        if lineas_count[linea] < 3:
+            results.append({
+                'hora': item.get('hora'),
+                'time': item.get('time'),
+                'destino': item.get('destino'),
+                'linea': linea,
+                'minutos': item.get('minutos'),
+                'real': item.get('real')
+            })
+            lineas_count[linea] += 1
 
     return results
 
@@ -303,3 +309,136 @@ def get_ids_para_direccion(direccion: str) -> tuple[int, int, str]:
         direccionPrimerParam = get_street_number_comoir(direccionNombreCalle)
         tipo = "DIRECCION"
     return direccionPrimerParam, direccionSegundoParam, tipo
+
+def get_eta_lineas(parada_id: int, lineas: list = None, cantPorLinea: int = 3):
+    """
+    Obtiene los ETAs de las líneas específicas en una parada usando los endpoints nextETA y variantes.
+    
+    Args:
+        parada_id: ID de la parada
+        lineas: Lista de líneas a consultar (ej: ["181", "407"]). Si es None, consulta todas las líneas.
+        cantPorLinea: Cantidad de próximos buses por línea
+        
+    Returns:
+        Lista de diccionarios con información de ETAs por línea
+    """
+    
+    variantes_info = get_variantes_parada(parada_id)
+    
+    eta_data = get_next_eta(parada_id, lineas, cantPorLinea)
+    
+    return combinar_eta_con_lineas(eta_data, variantes_info)
+
+def get_next_eta(parada_id: int, lineas: list = None, cantPorLinea: int = 3):
+    """
+    Consulta el endpoint nextETA para obtener información de ETAs.
+    
+    Args:
+        parada_id: ID de la parada
+        lineas: Lista de líneas a filtrar (opcional)
+        cantPorLinea: Cantidad de próximos buses por línea
+        
+    Returns:
+        Respuesta del endpoint nextETA
+    """
+    url = "https://m.montevideo.gub.uy/stmonlineRest/nextETA"
+    
+    headers = {
+        "Content-Type": "application/json",
+        "Referer": "https://m.montevideo.gub.uy/",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "DNT": "1",
+        "sec-ch-ua-platform": "macOS",
+        "sec-ch-ua": '"Not)A;Brand";v="8", "Chromium";v="138"',
+        "sec-ch-ua-mobile": "?0"
+    }
+    
+    body = {
+        "variante": [],
+        "parada": parada_id,
+        "linea": lineas if lineas else [],
+        "cantPorLinea": cantPorLinea
+    }
+    
+    response = requests.post(url, json=body, headers=headers)
+    response.raise_for_status()
+    return response.json()
+
+
+def get_variantes_parada(parada_id: int):
+    """
+    Obtiene información de variantes disponibles en una parada.
+    
+    Args:
+        parada_id: ID de la parada
+        
+    Returns:
+        Información de variantes, líneas y destinos de la parada
+    """
+    url = f"https://api.montevideo.gub.uy/transporteRest/variantes/{parada_id}"
+    
+    headers = {
+        "Referer": "https://m.montevideo.gub.uy/",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "DNT": "1",
+        "sec-ch-ua-platform": "macOS",
+        "sec-ch-ua": '"Not)A;Brand";v="8", "Chromium";v="138"',
+        "sec-ch-ua-mobile": "?0"
+    }
+    
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    return response.json()
+
+
+def combinar_eta_con_lineas(eta_data, variantes_info):
+    """
+    Combina los datos de ETA con la información de líneas usando las variantes.
+    
+    Args:
+        eta_data: Respuesta del endpoint nextETA
+        variantes_info: Respuesta del endpoint variantes
+        
+    Returns:
+        Lista de buses con información completa incluyendo línea y destino
+    """
+    resultados = []
+    
+    variante_a_linea = {}
+    variante_a_destino = {}
+    
+    for linea_id, variantes in variantes_info.get("variantes", {}).items():
+        linea_nombre = variantes_info.get("lineas", {}).get(linea_id, linea_id)
+        for variante in variantes:
+            variante_a_linea[variante] = linea_nombre
+    
+    for variante_id, destino in variantes_info.get("destinos", {}).items():
+        variante_a_destino[int(variante_id)] = destino
+    
+    for feature in eta_data.get("features", []):
+        properties = feature.get("properties", {})
+        variante = properties.get("variante")
+        
+        if variante in variante_a_linea:
+            linea = variante_a_linea[variante]
+            destino = variante_a_destino.get(variante, "Destino no disponible")
+            
+            resultado = {
+                "linea": linea,
+                "destino": destino,
+                "eta_segundos": properties.get("eta"),
+                "eta_minutos": round(properties.get("eta", 0) / 60, 1),
+                "distancia_metros": properties.get("dist"),
+                "codigo_bus": properties.get("codigoBus"),
+                "codigo_empresa": properties.get("codigoEmpresa"),
+                "variante": variante,
+                "posicion": properties.get("pos"),
+                "coordenadas": feature.get("geometry", {}).get("coordinates", [])
+            }
+            resultados.append(resultado)
+    
+    resultados.sort(key=lambda x: x.get("eta_segundos", float('inf')))
+    
+    return resultados
