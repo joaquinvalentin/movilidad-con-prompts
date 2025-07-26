@@ -7,22 +7,9 @@ import urllib.error
 import urllib.parse
 import requests
 from datetime import datetime
+from paradas import PARADAS
 
-def read_paradas_json(filepath: str = "paradas.json"):
-    """
-    Reads and parses JSON data from the given file (default: paradas.txt).
-
-    Args:
-        filepath (str): Path to the file containing JSON data.
-
-    Returns:
-        The parsed JSON data (usually a dict or list).
-    """
-    with open(filepath, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    return data
-
-def get_closest_stop_id(latitude: float, longitude: float, filepath: str = "paradas.json") -> int:
+def get_closest_stop_id(latitude: float, longitude: float) -> int:
     """
     Finds the closest bus stop ID using Haversine distance.
 
@@ -35,7 +22,7 @@ def get_closest_stop_id(latitude: float, longitude: float, filepath: str = "para
         int: The busstopId of the closest stop
     """
     # Get all stops within a very large radius and return the closest one
-    stops = get_stops_within_radius(latitude, longitude, float('inf'), filepath)
+    stops = get_stops_within_radius(latitude, longitude, float('inf'))
     
     if stops:
         return stops[0]['busstopId']
@@ -69,7 +56,7 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
     return R * c
 
 
-def get_stops_within_radius(latitude: float, longitude: float, max_distance: float, filepath: str = "paradas.json") -> list:
+def get_stops_within_radius(latitude: float, longitude: float, max_distance: float) -> list:
     """
     Finds all bus stops within a specified radius using Haversine distance.
 
@@ -83,11 +70,12 @@ def get_stops_within_radius(latitude: float, longitude: float, max_distance: flo
         list: List of dictionaries containing busstopId and distance for stops within radius,
               sorted by distance (closest first)
     """
-    paradas = read_paradas_json(filepath)
+    # Read the bus stops data
     
     stops_within_radius = []
     
-    for parada in paradas:
+    for parada in PARADAS:
+        # Extract coordinates from the location
         stop_longitude = parada['location']['coordinates'][0]
         stop_latitude = parada['location']['coordinates'][1]
         
