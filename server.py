@@ -44,21 +44,19 @@ def consultar_omnibus_cercanos(direccion: str, tiempo: Optional[str] = None, rad
 
     return resultados
 
-@mcp.tool()
 def consultar_rutas_omnibus(direccionOrigen: str, direccionDestino: str) -> Any:
     """
     Consulta las rutas de omnibus entre dos direcciones.
     Args:
-        direccionOrigen: La direccion de origen en lenguaje natural.
-        direccionDestino: La direccion de destino en lenguaje natural.
+        direccionOrigen: La direccion de origen en lenguaje natural, con el formato "<calle> <numero de puerta>" o "<calle> esquina <calle>".
+        direccionDestino: La direccion de destino en lenguaje natural, con el formato "<calle> <numero de puerta>" o "<calle> esquina <calle>".
     Returns:
         Las rutas de omnibus entre las dos direcciones. 
         Cada ruta es un array de tramos, en el que cada tramo representa un trayecto a recorrer en un omnibus.
         Cada tramo tiene descripción, parada de origen, parada de destino, caminar origen, caminar destino.
         Caminar origen y caminar destino son la distancia a recorrer en metros.
     """
-    base_url = "https://api.montevideo.gub.uy/comoirRest/rest/comoir/bus/DIRECCION/DIRECCION"
-
+    
     headers = {
         "sec-ch-ua-platform": "macOS",
         "Referer": "https://m.montevideo.gub.uy/",
@@ -69,21 +67,16 @@ def consultar_rutas_omnibus(direccionOrigen: str, direccionDestino: str) -> Any:
         "sec-ch-ua-mobile": "?0"
     }
 
-    direccionOrigenDic = utils.geocodificar_direccion(direccionOrigen)
-    direccionOrigenNumPuerta =  direccionOrigenDic['numero_puerta']
-    direccionOrigenNombreCalle = direccionOrigenDic['nombre_calle']
-    direccionOrigenStreetId = utils.get_street_number_comoir(direccionOrigenNombreCalle)
+    direccionOrigenPrimerParam, direccionOrigenSegundoParam, tipoOrigen = utils.get_ids_para_direccion(direccionOrigen)
+    direccionDestinoPrimerParam, direccionDestinoSegundoParam, tipoDestino = utils.get_ids_para_direccion(direccionDestino)
 
-    direccionDestinoDic = utils.geocodificar_direccion(direccionDestino)
-    direccionDestinoNumPuerta = direccionDestinoDic['numero_puerta']
-    direccionDestinoNombreCalle = direccionDestinoDic['nombre_calle']
-    direccionDestinoStreetId = utils.get_street_number_comoir(direccionDestinoNombreCalle)
+    base_url = "https://api.montevideo.gub.uy/comoirRest/rest/comoir/bus/{tipoOrigen}/{tipoDestino}"
 
     params = [
-        ("paramOrigen", direccionOrigenStreetId),
-        ("paramOrigen", direccionOrigenNumPuerta),
-        ("paramDestino", direccionDestinoStreetId),
-        ("paramDestino", direccionDestinoNumPuerta)
+        ("paramOrigen", direccionOrigenPrimerParam),
+        ("paramOrigen", direccionOrigenSegundoParam),
+        ("paramDestino", direccionDestinoPrimerParam),
+        ("paramDestino", direccionDestinoSegundoParam)
     ]
 
     response = requests.get(base_url, params=params, headers=headers)

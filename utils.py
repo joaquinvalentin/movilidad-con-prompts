@@ -289,3 +289,17 @@ def parse_tramos_ordenados(json_data):
         tramos_totales.append({"tramos": tramo_actual})
 
     return tramos_totales
+
+def get_ids_para_direccion(direccion: str) -> tuple[int, int, str]:
+    direccion_split = direccion.split(" esquina ")
+    if (len(direccion_split) == 2):
+        direccionPrimerParam = get_street_number_comoir(direccion_split[0])
+        direccionSegundoParam = get_street_number_comoir(direccion_split[1])
+        tipo = "ESQUINA"
+    else:   
+        direccionDic = geocodificar_direccion(direccion)
+        direccionSegundoParam =  direccionDic['numero_puerta']
+        direccionNombreCalle = direccionDic['nombre_calle']
+        direccionPrimerParam = get_street_number_comoir(direccionNombreCalle)
+        tipo = "DIRECCION"
+    return direccionPrimerParam, direccionSegundoParam, tipo
