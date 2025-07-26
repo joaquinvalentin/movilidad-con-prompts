@@ -11,13 +11,16 @@ from typing import List, Dict, Any, Optional
 from mcp.server.fastmcp import FastMCP
 import utils
 import requests
+import pdb
 
 mcp = FastMCP("Movilidad Con Prompts", dependencies=["requests"])
 
 @mcp.tool()
-def consultar_omnibus_cercanos(direccion: str, tiempo: Optional[str] = None, radio: float = 200) -> Any:
+def consultar_horarios_programados_omnibus(direccion: str, tiempo: Optional[str] = None, radio: float = 200) -> Any:
     """
-    Consulta los proximos omnibus cercanos a una direccion.
+    Consulta los proximos omnibus cercanos a una direccion. Puede ser utilizada para obtener las paradas cercanas a una direccion, y para obtener
+    los horarios programados de los omnibus que pasan por dichas paradas, asi como la frecuencia de los mismos. Utilizar para obtener los horarios 
+    de los omnibus para un recorrido. ESTOS HORARIOS SON PROGRAMADOS, NO SON EN TIEMPO REAL.
     Args:
         direccion: La direccion a consultar en lenguaje natural. Si la direccion es compuesta debe ser en formato "calle A esquina calle B".
         tiempo: La fecha y hora en formato "YYYY-MM-DD HH:MM" para consultar los horarios. Por defecto es la fecha y hora actual.
@@ -28,14 +31,13 @@ def consultar_omnibus_cercanos(direccion: str, tiempo: Optional[str] = None, rad
         calle: La calle de la parada.
         esquina: La otra calle de la parada.
         horarios:[
-             //Los horarios de los omnibus que pasan por la parada.
+             //Los horarios programados de los omnibus que pasan por la parada.
             {    
                 "hora": La hora en formato 24 horas.
                 "time": El timestamp en milisegundos.
                 "destino": El destino del omnibus.
                 "linea": La linea del omnibus.
                 "minutos": Los minutos restantes para que el omnibus llegue a la parada.
-                "real": Si el horario es real o estimado.
             }
         ]
     """
@@ -60,6 +62,7 @@ def consultar_omnibus_cercanos(direccion: str, tiempo: Optional[str] = None, rad
 
     return resultados
 
+@mcp.tool()
 def consultar_rutas_omnibus(direccionOrigen: str, direccionDestino: str) -> Any:
     """
     Consulta las rutas de omnibus entre dos direcciones.
@@ -86,7 +89,7 @@ def consultar_rutas_omnibus(direccionOrigen: str, direccionDestino: str) -> Any:
     direccionOrigenPrimerParam, direccionOrigenSegundoParam, tipoOrigen = utils.get_ids_para_direccion(direccionOrigen)
     direccionDestinoPrimerParam, direccionDestinoSegundoParam, tipoDestino = utils.get_ids_para_direccion(direccionDestino)
 
-    base_url = "https://api.montevideo.gub.uy/comoirRest/rest/comoir/bus/{tipoOrigen}/{tipoDestino}"
+    base_url = f"https://api.montevideo.gub.uy/comoirRest/rest/comoir/bus/{tipoOrigen}/{tipoDestino}"
 
     params = [
         ("paramOrigen", direccionOrigenPrimerParam),
@@ -99,22 +102,23 @@ def consultar_rutas_omnibus(direccionOrigen: str, direccionDestino: str) -> Any:
     return utils.parse_tramos_ordenados(response.json())
 
 @mcp.tool()
-def consultar_eta_tiempo_real(parada_id: int = None, lineas: list = None, cantPorLinea: int = 3) -> Any:
+def consultar_eta_tiempo_real(parada_id: int = None, lineas: list = None) -> Any:
     """
     Consulta los ETAs (tiempo estimado de llegada) en tiempo real de las líneas de ómnibus.
     Puede consultar por dirección (busca paradas cercanas) o por ID de parada específica.
+    Utilizar en los casos donde el usuario quiere saber cuando pasa el proximo omnibus por una parada. 
+    Por ejemplo: "Cuando pasa el omnibus 181 por la parada de Bulevar Espana esquina Obligado?"
     
     Args:
         parada_id: ID específico de la parada a consultar).
         lineas: Lista de líneas específicas a consultar (ej: ["181", "407"]). Si no se especifica, consulta todas las líneas disponibles.
-        cantPorLinea: Cantidad máxima de próximos buses por línea. Por defecto 3.
     
     Returns:
         Información de ETAs en tiempo real con líneas, destinos y tiempos de llegada.
     """
     resultados = []
     
-    etas = utils.get_eta_lineas(parada_id, lineas, cantPorLinea)
+    etas = utils.get_eta_lineas(parada_id, lineas)
     if etas:
         parada_info = None
         for parada in utils.PARADAS:
@@ -134,3 +138,5 @@ def consultar_eta_tiempo_real(parada_id: int = None, lineas: list = None, cantPo
         return "No se encontraron ETAs en tiempo real"
 
     return resultados
+
+

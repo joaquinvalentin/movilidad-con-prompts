@@ -174,7 +174,7 @@ def geocodificar_direccion(direccion: str, departamento: str = "Montevideo", loc
 def get_next_buses_at_stop(stop_id: str, day: str, time: str):
     """
     Devuelve los próximos ómnibus de una parada con solo los campos clave:
-    hora, time, destino, linea, minutos y real.
+    hora, time, destino, linea, minutos.
     Máximo 3 entradas por línea.
     """
     url = f"https://api.montevideo.gub.uy/transporteRest/siguientesParada/{stop_id}/{day}/{time}"
@@ -209,7 +209,6 @@ def get_next_buses_at_stop(stop_id: str, day: str, time: str):
                 'destino': item.get('destino'),
                 'linea': linea,
                 'minutos': item.get('minutos'),
-                'real': item.get('real')
             })
             lineas_count[linea] += 1
 
