@@ -148,6 +148,7 @@ def geocodificar_direccion(direccion: str, departamento: str = "Montevideo", loc
                 'longitud': resultado.get('puntoX', None)
             },
             'codigo_calle': calle_info.get('idCalle', None),
+            'nombre_calle': calle_nombre,
             'numero_puerta': numero_puerta,
             'departamento': depto_info.get('nombre_normalizado', departamento),
             'localidad': localidad_info.get('nombre_normalizado', localidad),
@@ -221,3 +222,70 @@ def get_codigo_dia(fecha: datetime):
         tipo_dia = "HABIL"
 
     return tipo_dia
+
+def get_street_number_comoir(nombre: str) -> int | None:
+    """
+    Devuelve el código numérico (COMO IR) de la primera calle (tipo VIA) que coincida con el nombre dado.
+
+    Parámetro:
+    - nombre: str, nombre de la calle o avenida (ej: "bulevar españa")
+
+    Retorna:
+    - int: código de la calle (ej: 2562)
+    - None si no se encontró ninguna coincidencia tipo VIA
+    """
+    url = "https://api.montevideo.gub.uy/ubicacionesRest/infoUbicacion/lugaresDeInteresYVias/"
+    params = {"nombre": nombre}
+
+    headers = {
+        "sec-ch-ua-platform": "macOS",
+        "Referer": "https://m.montevideo.gub.uy/",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "sec-ch-ua": '"Not)A;Brand";v="8", "Chromium";v="138"',
+        "DNT": "1",
+        "sec-ch-ua-mobile": "?0"
+    }
+
+    response = requests.get(url, params=params, headers=headers)
+    response.raise_for_status()
+    resultados = response.json()
+
+    for r in resultados:
+        if r.get("descTipo") == "VIA" and "codigo" in r:
+            return r["codigo"]
+
+    return None
+
+def parse_tramos_ordenados(json_data):
+    tramos_totales = []
+
+    for entrada in json_data[:3]: 
+        tramo_actual = []
+        ruta = entrada.get("ruta", {})
+        directo = ruta.get("directo", {})
+        trasbordo = ruta.get("trasbordo")
+
+        # Primer tramo (siempre está)
+        tramo1 = {
+            "descripcion": directo.get("descripcion"),
+            "paradaOrigen": directo.get("paradaOrigen", {}).get("descripcion"),
+            "paradaDestino": (trasbordo or directo).get("paradaOrigen" if trasbordo else "paradaDestino", {}).get("descripcion"),
+            "caminarOrigen": f"{directo.get('caminarSalida', {}).get('largo', 0)} m",
+            "caminarDestino": "0 m" if trasbordo else f"{directo.get('caminarLlegada', {}).get('largo', 0)} m"
+        }
+        tramo_actual.append(tramo1)
+
+        # Segundo tramo (solo si hay trasbordo)
+        if trasbordo:
+            tramo2 = {
+                "descripcion": trasbordo.get("descripcion"),
+                "paradaOrigen": trasbordo.get("paradaOrigen", {}).get("descripcion"),
+                "paradaDestino": trasbordo.get("paradaDestino", {}).get("descripcion"),
+                "caminarOrigen": "0 m",
+                "caminarDestino": f"{trasbordo.get('caminarLlegada', {}).get('largo', 0)} m"
+            }
+            tramo_actual.append(tramo2)
+        tramos_totales.append({"tramos": tramo_actual})
+
+    return tramos_totales
