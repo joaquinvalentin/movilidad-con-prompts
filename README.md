@@ -2,6 +2,8 @@
 
 A Model Context Protocol (MCP) server that provides real-time and scheduled bus information for Montevideo, Uruguay's public transportation system. This server exposes three powerful tools for querying bus schedules, routes, and real-time arrival information.
 
+> Built for the "Build your MCP" Hackathon organized by Google Developers Groups Uruguay.
+
 ## 🚌 Available MCP Tools
 
 ### 1. `consultar_horarios_programados_omnibus`
