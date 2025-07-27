@@ -2,9 +2,6 @@ import json
 import math
 
 from typing import Any, Dict
-import urllib.request
-import urllib.error
-import urllib.parse
 import requests
 from datetime import datetime
 from paradas import PARADAS
@@ -114,13 +111,10 @@ def geocodificar_direccion(direccion: str, departamento: str = "Montevideo", loc
         'localidad': localidad
     }
     
-    url_params = urllib.parse.urlencode(params)
-    url = f"{url_base}?{url_params}"
-    
     try:
-        with urllib.request.urlopen(url) as response: #TODO: cambiar a requests
-            web_pg = response.read()
-            data = json.loads(web_pg.decode('utf-8'))
+        response = requests.get(url_base, params=params)
+        response.raise_for_status()
+        data = response.json()
         
         if not data:
             raise ValueError("No se encontraron resultados para la dirección especificada")
@@ -159,15 +153,16 @@ def geocodificar_direccion(direccion: str, departamento: str = "Montevideo", loc
         
         return geocoding_result
         
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
+    except requests.HTTPError as e:
+        if e.response.status_code == 404:
             raise ValueError("Dirección no encontrada en la base de datos")
         else:
-            raise ValueError(f"Error HTTP {e.code}: {e.reason}")
-    except urllib.error.URLError as e:
-        raise ValueError(f"Error de conexión a la API de direcciones: {e.reason}")
-    except json.JSONDecodeError:
-        raise ValueError("Error al decodificar la respuesta de la API")
+            raise ValueError(f"Error HTTP {e.response.status_code}: {e.response.reason}")
+    except requests.RequestException as e:
+        raise ValueError(f"Error de conexión a la API de direcciones: {str(e)}")
+    except ValueError:
+        # Re-raise ValueError exceptions as they are already properly formatted
+        raise
     except Exception as e:
         raise ValueError(f"Error inesperado: {str(e)}")
 

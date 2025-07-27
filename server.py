@@ -1,17 +1,8 @@
-"""
-FastMCP quickstart example.
-
-cd to the `examples/snippets/clients` directory and run:
-    uv run server fastmcp_quickstart stdio
-"""
-
-import json
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from mcp.server.fastmcp import FastMCP
 import utils
 import requests
-import pdb
 
 mcp = FastMCP("Movilidad Con Prompts", dependencies=["requests"])
 
@@ -30,8 +21,7 @@ def consultar_horarios_programados_omnibus(direccion: str, tiempo: Optional[str]
         busstopId: El id de la parada. Es un id interno, no se debe mostrar al usuario.
         calle: La calle de la parada.
         esquina: La otra calle de la parada.
-        horarios:[
-             //Los horarios programados de los omnibus que pasan por la parada.
+        horarios: [
             {    
                 "hora": La hora en formato 24 horas.
                 "time": El timestamp en milisegundos.
