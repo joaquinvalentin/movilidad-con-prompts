@@ -1,8 +1,9 @@
 from datetime import datetime
-from typing import List, Dict, Any, Optional
-from mcp.server.fastmcp import FastMCP
-import utils
+from typing import Any, Optional
+from fastmcp import FastMCP
 import requests
+import utils
+from como_ir import utils as comoir_utils
 
 mcp = FastMCP("Movilidad Con Prompts", dependencies=["requests"])
 
@@ -131,5 +132,200 @@ def consultar_eta_tiempo_real(parada_id: int, lineas: list = None) -> Any:
         return "No se encontraron ETAs en tiempo real"
 
     return resultados
+
+
+@mcp.tool()
+def buscar_lugares_y_vias(termino_busqueda: str) -> Any:
+    """
+    Busca lugares de interés y vías (calles) que coincidan con el término de búsqueda.
+    
+    Args:
+        termino_busqueda: Texto a buscar (ej: "18 de julio", "pocitos", "shopping")
+        
+    Returns:
+        Lista de ubicaciones encontradas con código, nombre, tipo y subtipo
+    """
+    return comoir_utils.buscar_lugares_y_vias(termino_busqueda)
+
+@mcp.tool()
+def buscar_esquinas_por_via(codigo_via: str, termino_esquina: str) -> Any:
+    """
+    Busca calles que se cruzan con una vía específica para formar esquinas.
+    
+    Args:
+        codigo_via: Código de la vía principal (obtenido de buscar_lugares_y_vias)
+        termino_esquina: Nombre de la calle que cruza
+        
+    Returns:
+        Lista de vías que forman esquina con la vía principal
+    """
+    return comoir_utils.buscar_esquinas_por_via(codigo_via, termino_esquina)
+
+@mcp.tool()
+def obtener_coordenadas_esquina(codigo_via1: str, codigo_via2: str) -> Any:
+    """
+    Obtiene las coordenadas exactas de una esquina específica.
+    
+    Args:
+        codigo_via1: Código de la primera vía
+        codigo_via2: Código de la segunda vía
+        
+    Returns:
+        Información completa de la esquina con coordenadas y geometría
+    """
+    return comoir_utils.obtener_coordenadas_esquina(codigo_via1, codigo_via2)
+
+@mcp.tool()
+def obtener_coordenadas_direccion(codigo_via: str, numero: str) -> Any:
+    """
+    Obtiene las coordenadas de una dirección específica (calle + número).
+    
+    Args:
+        codigo_via: Código de la vía (calle)
+        numero: Número de puerta
+        
+    Returns:
+        Información completa de la dirección con coordenadas
+    """
+    return comoir_utils.obtener_coordenadas_direccion(codigo_via, numero)
+
+@mcp.tool()
+def obtener_coordenadas_lugar_interes(codigo_lugar: str, tipo_lugar: str) -> Any:
+    """
+    Obtiene las coordenadas de un lugar de interés específico.
+    
+    Args:
+        codigo_lugar: Código del lugar de interés
+        tipo_lugar: Tipo del lugar (CULTURA, DEPORTE, EDUCACION, PARQUE, PLAYA, etc.)
+        
+    Returns:
+        Información completa del lugar con coordenadas
+    """
+    return comoir_utils.obtener_coordenadas_lugar_interes(codigo_lugar, tipo_lugar)
+
+@mcp.tool()
+def geocodificacion_reversa(longitud: float, latitud: float, incluir_direcciones: bool = True) -> Any:
+    """
+    Convierte coordenadas en una descripción de ubicación legible.
+    
+    Args:
+        longitud: Coordenada X (longitud)
+        latitud: Coordenada Y (latitud)
+        incluir_direcciones: Si incluir direcciones cercanas en el resultado
+        
+    Returns:
+        Información de la ubicación más cercana a las coordenadas
+    """
+    return comoir_utils.geocodificacion_reversa(longitud, latitud, incluir_direcciones)
+
+@mcp.tool()
+def resolver_ubicacion_completa(descripcion_ubicacion: str) -> Any:
+    """
+    Resuelve cualquier descripción de ubicación en datos estructurados completos.
+    Implementa la lógica completa de autocompleteAddress del código original.
+    
+    Args:
+        descripcion_ubicacion: Descripción en lenguaje natural (ej: "18 de julio 1234", "pocitos esquina buxareo", "shopping tres cruces")
+        
+    Returns:
+        Lista de ubicaciones resueltas con todos los datos necesarios para calcular rutas
+    """
+    return comoir_utils.resolver_ubicacion_completa(descripcion_ubicacion)
+
+@mcp.tool()
+def consultar_rutas_omnibus_mejorado(direccionOrigen: str, direccionDestino: str, incluir_alternativas: bool = True) -> Any:
+    """
+    Consulta las rutas de omnibus entre dos direcciones usando el sistema de resolución completo.
+    
+    Args:
+        direccionOrigen: La direccion de origen en lenguaje natural
+        direccionDestino: La direccion de destino en lenguaje natural  
+        incluir_alternativas: Si incluir rutas alternativas (máximo 3)
+        
+    Returns:
+        Las rutas de omnibus con información detallada
+    """
+    
+    try:
+        origenes = comoir_utils.resolver_ubicacion_completa(direccionOrigen)
+        destinos = comoir_utils.resolver_ubicacion_completa(direccionDestino)
+    except Exception as e:
+        return {"error": f"Error en resolución de ubicaciones: {str(e)}"}
+    
+    if not origenes:
+        return {"error": f"No se pudo resolver la ubicación de origen: {direccionOrigen}"}
+    
+    if not destinos:
+        return {"error": f"No se pudo resolver la ubicación de destino: {direccionDestino}"}
+    
+    origen = origenes[0]
+    destino = destinos[0]
+    
+    if not comoir_utils.obtener_tipo_para_url(origen):
+        return {"error": f"No se pudo determinar el tipo de origen: {origen}"}
+    
+    if not comoir_utils.obtener_tipo_para_url(destino):
+        return {"error": f"No se pudo determinar el tipo de destino: {destino}"}
+
+    try:
+        rutas = comoir_utils.calcular_ruta_bus_api(origen, destino)
+        
+        # Limitar resultados si no se quieren alternativas
+        if not incluir_alternativas:
+            rutas = rutas[:1]
+        
+        resultado = {
+            "origen_resuelto": origen,
+            "destino_resuelto": destino,
+            "rutas": utils.parse_tramos_ordenados(rutas)
+        }
+        
+        return resultado
+        
+    except Exception as e:
+        return {"error": f"Error en consulta de rutas: {str(e)}"}
+
+@mcp.tool()
+def calcular_ruta_caminando(direccionOrigen: str, direccionDestino: str) -> Any:
+    """
+    Calcula la ruta caminando entre dos ubicaciones.
+    
+    Args:
+        direccionOrigen: La direccion de origen en lenguaje natural
+        direccionDestino: La direccion de destino en lenguaje natural
+        
+    Returns:
+        Información de la ruta caminando con distancia y tiempo estimado
+    """
+    
+    try:
+        origenes = comoir_utils.resolver_ubicacion_completa(direccionOrigen)
+        destinos = comoir_utils.resolver_ubicacion_completa(direccionDestino)
+    except Exception as e:
+        return {"error": f"Error en resolución de ubicaciones: {str(e)}"}
+    
+    if not origenes:
+        return {"error": f"No se pudo resolver la ubicación de origen: {direccionOrigen}"}
+    
+    if not destinos:
+        return {"error": f"No se pudo resolver la ubicación de destino: {direccionDestino}"}
+    
+    origen = origenes[0]
+    destino = destinos[0]
+    
+    if not comoir_utils.obtener_tipo_para_url(origen) or not comoir_utils.obtener_tipo_para_url(destino):
+        return {"error": "No se pudo determinar el tipo de ubicación"}
+    
+    try:
+        resultado = comoir_utils.calcular_ruta_caminando_api(origen, destino)
+        
+        return {
+            "origen_resuelto": origen,
+            "destino_resuelto": destino,
+            "ruta_caminando": resultado
+        }
+        
+    except Exception as e:
+        return {"error": f"Error en cálculo de ruta: {str(e)}"}
 
 
